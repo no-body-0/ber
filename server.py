@@ -24,37 +24,29 @@ class CodeRequest(BaseModel):
 async def run_code(request: Request):
     data = await request.json()
     code = data.get("code", "")
-    language = data.get("language", "python")
-    user_input = data.get("input", "")
+    stdin_data = data.get("stdin", "")
 
-    if language == "python":
-        try:
-            # Check if code expects input()
-            if "input(" in code and not user_input:
-                prompt_text = code.split("input(")[1].split(")")[0].strip("'\"") + ": "
-                return {"prompt": prompt_text}
-            
-            # Execute Python code safely
-            import subprocess, tempfile, os
-            with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as tmp:
-                tmp.write(code.encode())
-                tmp_path = tmp.name
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as temp_file:
+            temp_file.write(code)
+            temp_path = temp_file.name
 
-            result = subprocess.run(
-                ["python3", tmp_path],
-                input=user_input,
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
+        result = subprocess.run(
+            ["python3", temp_path],
+            input=stdin_data,
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
 
-            os.remove(tmp_path)
-            return {"output": result.stdout or result.stderr}
+        os.remove(temp_path)
+        output = result.stdout or result.stderr
+        return {"output": output.strip() or "No output."}
 
-        except Exception as e:
-            return {"output": f"Error: {str(e)}"}
-
-    return {"output": "Unsupported language"}
+    except subprocess.TimeoutExpired:
+        return {"output": "Error: Execution timed out."}
+    except Exception as e:
+        return {"output": f"Error: {str(e)}"}
 
 
 # === Optional: Store shared code to GitHub ===

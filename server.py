@@ -21,24 +21,41 @@ class CodeRequest(BaseModel):
     code: str
 
 @app.post("/run")
-async def run_code(request: CodeRequest):
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".py") as tmp:
-            tmp.write(request.code.encode())
-            tmp.flush()
+async def run_code(request: Request):
+    data = await request.json()
+    code = data.get("code", "")
+    language = data.get("language", "python")
+    user_input = data.get("input", "")
+
+    if language == "python":
+        try:
+            # Check if code expects input()
+            if "input(" in code and not user_input:
+                prompt_text = code.split("input(")[1].split(")")[0].strip("'\"") + ": "
+                return {"prompt": prompt_text}
+            
+            # Execute Python code safely
+            import subprocess, tempfile, os
+            with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as tmp:
+                tmp.write(code.encode())
+                tmp_path = tmp.name
+
             result = subprocess.run(
-                ["python3", tmp.name],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=5,
-                text=True
+                ["python3", tmp_path],
+                input=user_input,
+                capture_output=True,
+                text=True,
+                timeout=5
             )
-        os.unlink(tmp.name)
-        return {"output": result.stdout + result.stderr}
-    except subprocess.TimeoutExpired:
-        return {"output": "Error: Code took too long to run (timeout)."}
-    except Exception as e:
-        return {"output": f"Error: {e}"}
+
+            os.remove(tmp_path)
+            return {"output": result.stdout or result.stderr}
+
+        except Exception as e:
+            return {"output": f"Error: {str(e)}"}
+
+    return {"output": "Unsupported language"}
+
 
 # === Optional: Store shared code to GitHub ===
 @app.post("/share")

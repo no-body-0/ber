@@ -44,7 +44,7 @@ async def run_code(request: CodeRequest):
 @app.post("/share")
 async def share_code(request: CodeRequest):
     GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-    REPO_NAME = "no-body-0/BackEnd-Repo"  # change this to your own repo
+    REPO_NAME = "no-body-0/ber"  # change this to your own repo
     g = Github(GITHUB_TOKEN)
     repo = g.get_repo(REPO_NAME)
     file_path = f"shared/{hash(request.code)}.py"
